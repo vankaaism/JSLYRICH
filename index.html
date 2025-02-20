@@ -1,36 +1,54 @@
-<html lang="en">
+function sendQrEmails() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var data = sheet.getDataRange().getValues();
+  
+  var draft = getEmailDraft();
+  if (!draft) {
+    Logger.log("No email draft found.");
+    return;
+  }
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="shortcut icon" href="images/gift.png" type="image/x-icon">
-  <link rel="stylesheet" href="css/index.css">
+  for (var i = 1; i < data.length; i++) {
+    var qrcodenumber = data[i][2]; 
+    var participantCode = data[i][2];
+    var email = data[i][3]; 
+    var name = data[i][1]; 
 
-  <!-- Document Title -->
-  <title>I Have Something</title>
-</head>
+    if (!email) continue;
 
-<body>
-  <!-- Background -->
-  <div class="night"></div>
+    var qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrcodenumber)}`;
+    var qrCodeBlob;
+    try {
+      var response = UrlFetchApp.fetch(qrCodeUrl);
+      qrCodeBlob = response.getBlob();
+    } catch (e) {
+      Logger.log("Failed to fetch QR code for " + email + ": " + e.toString());
+      continue;
+    }
 
-  <!-- Title -->
-  <h1 class="title"></h1>
+    var emailBody = draft.replace("{{name}}", name)
+                         .replace("{{type}}", participantCode)
+                         .replace("{{qr}}", '<img src="cid:qrCode">')
 
-  <!-- Button -->
-  <div style="position: absolute; top: 60vh; width: 100%; display: flex; justify-content: center;">
-    <a href="flower.html" class="btn">
-      <svg height="24" width="24" fill="#FFFFFF" viewBox="0 0 24 24" data-name="Layer 1" id="Layer_1" class="sparkle">
-        <path
-          d="M10,21.236,6.755,14.745.264,11.5,6.755,8.255,10,1.764l3.245,6.491L19.736,11.5l-6.491,3.245ZM18,21l1.5,3L21,21l3-1.5L21,18l-1.5-3L18,18l-3,1.5ZM19.333,4.667,20.5,7l1.167-2.333L24,3.5,21.667,2.333,20.5,0,19.333,2.333,17,3.5Z">
-        </path>
-      </svg>
 
-      <span class="text">Open</span>
-    </a>
-  </div>
+    MailApp.sendEmail({
+      to: email,
+      subject: "See You at TEDxTU Pre-Event 1 – Your Ticket is Here" + name,
+      htmlBody: emailBody,
+      inlineImages: {
+        qrCode: qrCodeBlob,
+      }
+    });
+  }
 
-  <script src="js/index.js"></script>
-</body>
+  Logger.log("Emails sent successfully!");
+}
 
-</html>
+function getEmailDraft() {
+  var drafts = GmailApp.getDrafts();
+  for (var i = 0; i < drafts.length; i++) {
+    var draft = drafts[i].getMessage();
+    return draft.getBody(); // Return first draft found
+  }
+  return null;
+}
